@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/devopsext/utils"
 	"github.com/gorilla/mux"
 
 	"github.com/avct/uasurfer"
@@ -15,30 +16,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var v1ProcessorRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
-	Name: "feeder_v1_processor_requests",
+var processorRequestsV1 = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "feeder_processor_requests_v1",
 	Help: "Count of all v1 processor requests",
 }, []string{})
 
-type V1ProcessorConfig struct {
-	HeaderOrigin      string
-	HeaderIPv4        string
-	HeaderSession     string
-	HeaderUserAgent   string
-	HeaderReferrer    string
-	HeaderLang        string
-	HeaderFingerprint string
-	HeaderCountry     string
-	HeaderProvider    string
-	HeaderProperty    string
-}
-
-type V1Processor struct {
+type ProcessorV1 struct {
 	outputs *common.Outputs
-	config  *V1ProcessorConfig
+	options *ProcessorOptions
 }
 
-func (p *V1Processor) parseAgent(agent string) *common.AgentV1 {
+func (p *ProcessorV1) parseAgent(agent string) *common.AgentV1 {
 
 	ua := uasurfer.Parse(agent)
 	if ua == nil {
@@ -64,7 +52,7 @@ func SetupCors(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 }
 
-func (p *V1Processor) HandleHttpRequest(w http.ResponseWriter, r *http.Request) {
+func (p *ProcessorV1) HandleHttpRequest(w http.ResponseWriter, r *http.Request) {
 
 	requestVariables := mux.Vars(r)
 
@@ -121,45 +109,45 @@ func (p *V1Processor) HandleHttpRequest(w http.ResponseWriter, r *http.Request) 
 	var provider = ""
 	var property = ""
 
-	if p.config != nil {
+	if p.options != nil {
 
-		origin = r.Header.Get(p.config.HeaderOrigin)
-		ipv4 = r.Header.Get(p.config.HeaderIPv4)
-		session = r.Header.Get(p.config.HeaderSession)
-		agent = r.Header.Get(p.config.HeaderUserAgent)
-		referrer = r.Header.Get(p.config.HeaderReferrer)
-		lang = r.Header.Get(p.config.HeaderLang)
-		fingerprint = r.Header.Get(p.config.HeaderFingerprint)
-		country = r.Header.Get(p.config.HeaderCountry)
-		provider = r.Header.Get(p.config.HeaderProvider)
-		property = r.Header.Get(p.config.HeaderProperty)
+		origin = r.Header.Get(p.options.HeaderOrigin)
+		ipv4 = r.Header.Get(p.options.HeaderIPv4)
+		session = r.Header.Get(p.options.HeaderSession)
+		agent = r.Header.Get(p.options.HeaderUserAgent)
+		referrer = r.Header.Get(p.options.HeaderReferrer)
+		lang = r.Header.Get(p.options.HeaderLang)
+		fingerprint = r.Header.Get(p.options.HeaderFingerprint)
+		country = r.Header.Get(p.options.HeaderCountry)
+		provider = r.Header.Get(p.options.HeaderProvider)
+		property = r.Header.Get(p.options.HeaderProperty)
 	}
 
-	if common.IsEmpty(v1.Origin) {
+	if utils.IsEmpty(v1.Origin) {
 		v1.Origin = origin
 	}
 
-	if common.IsEmpty(v1.IPv4) {
+	if utils.IsEmpty(v1.IPv4) {
 		v1.IPv4 = ipv4
 	}
 
-	if common.IsEmpty(v1.IPv4) {
+	if utils.IsEmpty(v1.IPv4) {
 		v1.IPv4 = r.RemoteAddr
 	}
 
-	if !common.IsEmpty(v1.IPv4) {
+	if !utils.IsEmpty(v1.IPv4) {
 
-		IpPort := strings.Split(v1.IPv4, ":")
-		if len(IpPort) > 0 {
-			v1.IPv4 = IpPort[0]
+		IPPort := strings.Split(v1.IPv4, ":")
+		if len(IPPort) > 0 {
+			v1.IPv4 = IPPort[0]
 		}
 	}
 
-	if common.IsEmpty(v1.Session) {
+	if utils.IsEmpty(v1.Session) {
 		v1.Session = session
 	}
 
-	if common.IsEmpty(v1.Session) {
+	if utils.IsEmpty(v1.Session) {
 
 		if cookie, _ := r.Cookie(v1.Cookie); cookie != nil {
 
@@ -167,40 +155,40 @@ func (p *V1Processor) HandleHttpRequest(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	v1Agent := v1.AgentString
+	agentV1 := v1.AgentString
 
-	if common.IsEmpty(v1Agent) {
-		v1Agent = agent
+	if utils.IsEmpty(agentV1) {
+		agentV1 = agent
 	}
 
-	if common.IsEmpty(v1Agent) {
-		v1Agent = r.Header.Get("User-Agent")
+	if utils.IsEmpty(agentV1) {
+		agentV1 = r.Header.Get("User-Agent")
 	}
 
-	v1.AgentString = v1Agent
-	v1.AgentObject = p.parseAgent(v1Agent)
+	v1.AgentString = agentV1
+	v1.AgentObject = p.parseAgent(agentV1)
 
-	if common.IsEmpty(v1.Referrer) {
+	if utils.IsEmpty(v1.Referrer) {
 		v1.Referrer = referrer
 	}
 
-	if common.IsEmpty(v1.Lang) {
+	if utils.IsEmpty(v1.Lang) {
 		v1.Lang = lang
 	}
 
-	if common.IsEmpty(v1.Fingerprint) {
+	if utils.IsEmpty(v1.Fingerprint) {
 		v1.Fingerprint = fingerprint
 	}
 
-	if common.IsEmpty(v1.Country) {
+	if utils.IsEmpty(v1.Country) {
 		v1.Country = country
 	}
 
-	if common.IsEmpty(v1.Provider) {
+	if utils.IsEmpty(v1.Provider) {
 		v1.Provider = provider
 	}
 
-	if common.IsEmpty(v1.Property) {
+	if utils.IsEmpty(v1.Property) {
 		v1.Property = property
 	}
 
@@ -227,13 +215,13 @@ func (p *V1Processor) HandleHttpRequest(w http.ResponseWriter, r *http.Request) 
 
 }
 
-func NewV1Processor(outputs *common.Outputs, config *V1ProcessorConfig) *V1Processor {
-	return &V1Processor{
+func NewProcessorV1(outputs *common.Outputs, options *ProcessorOptions) *ProcessorV1 {
+	return &ProcessorV1{
 		outputs: outputs,
-		config:  config,
+		options: options,
 	}
 }
 
 func init() {
-	prometheus.Register(v1ProcessorRequests)
+	prometheus.Register(processorRequestsV1)
 }

@@ -10,3 +10,5 @@ require (
 	github.com/prometheus/client_golang v1.4.1
 	github.com/spf13/cobra v0.0.5
 )
+
+//replace github.com/avct/uasurfer => github.com/click-stream/uasurfer v1.0.0

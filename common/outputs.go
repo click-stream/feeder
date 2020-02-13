@@ -7,8 +7,7 @@ import (
 )
 
 type Outputs struct {
-	timeFormat string
-	list       []*Output
+	list []*Output
 }
 
 func (ots *Outputs) Add(o *Output) {
@@ -57,8 +56,6 @@ func (ots *Outputs) Send(m *Message, variables map[string]string) error {
 	return nil
 }
 
-func NewOutputs(timeFormat string) *Outputs {
-	return &Outputs{
-		timeFormat: timeFormat,
-	}
+func NewOutputs() *Outputs {
+	return &Outputs{}
 }

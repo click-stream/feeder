@@ -1,4 +1,4 @@
-# Shipper
+# Feeder
 
 Http service which consumes Clickstream data.
 
@@ -13,7 +13,7 @@ Http service which consumes Clickstream data.
 
 ```sh
 git clone https://github.com/click-stream/feeder.git
-cd feeer/
+cd feeder/
 go build
 ```
 

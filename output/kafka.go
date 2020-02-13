@@ -11,6 +11,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/click-stream/feeder/common"
+	"github.com/devopsext/utils"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -19,25 +20,30 @@ var kafkaOutputCount = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help: "Count of all kafka output count",
 }, []string{"feeder_kafka_output_brokers", "feeder_kafka_output_topic"})
 
-type KafkaConfig struct {
+type KafkaOutputTopicsV1 struct {
+	DefaultPart string
+	Messages    string
+	Agents      string
+	Events      string
+	Attributes  string
+}
+
+type KafkaOutputOptions struct {
+	Brokers            string
+	ClientID           string
 	FlushFrequency     int
 	FlushMaxMessages   int
 	NetMaxOpenRequests int
 	NetDialTimeout     int
 	NetReadTimeout     int
 	NetWriteTimeout    int
-	DefaultV1TopicPart string
-	MessagesV1Topic    string
-	AgentsV1Topic      string
-	EventsV1Topic      string
-	AttributesV1Topic  string
 }
 
 type KafkaOutput struct {
 	wg       *sync.WaitGroup
-	brokers  string
 	producer *sarama.SyncProducer
-	config   *KafkaConfig
+	options  KafkaOutputOptions
+	topicsV1 KafkaOutputTopicsV1
 }
 
 type KafkaMessageV1 struct {
@@ -96,15 +102,18 @@ func hasElement(s uint32, array []uint32) bool {
 	return false
 }
 
-func (k *KafkaOutput) push(bytes []byte, topic string, variables map[string]string) bool {
+func (k *KafkaOutput) pushV1(bytes []byte, topic string, variables map[string]string) bool {
 
-	log.Debug("variables => %s", variables)
-	log.Debug("config => %s", k.config)
+	//log.Debug("variables => %s", variables)
+	//log.Debug("options => %s", k.options)
 
-	if idValue, exist := variables["id"]; exist {
-		topic = fmt.Sprintf(topic, idValue)
-	} else {
-		topic = fmt.Sprintf(topic, k.config.DefaultV1TopicPart)
+	if len(variables) > 0 {
+
+		if idValue, exist := variables["id"]; exist {
+			topic = fmt.Sprintf(topic, idValue)
+		} else {
+			topic = fmt.Sprintf(topic, k.topicsV1.DefaultPart)
+		}
 	}
 
 	log.Debug("Message to Kafka (topic: %s) => %s", topic, string(bytes[:]))
@@ -117,7 +126,7 @@ func (k *KafkaOutput) push(bytes []byte, topic string, variables map[string]stri
 		return false
 	}
 
-	kafkaOutputCount.WithLabelValues(k.brokers, topic).Inc()
+	kafkaOutputCount.WithLabelValues(k.options.Brokers, topic).Inc()
 
 	return true
 }
@@ -205,7 +214,7 @@ func (k *KafkaOutput) sendV1(m *common.Message, variables map[string]string) {
 		}
 	}
 
-	if k.config != nil && !common.IsEmpty(k.config.MessagesV1Topic) {
+	if !utils.IsEmpty(k.topicsV1.Messages) {
 
 		message := KafkaMessageV1{
 			Timestamp:   m.TimeMs,
@@ -229,11 +238,11 @@ func (k *KafkaOutput) sendV1(m *common.Message, variables map[string]string) {
 			return
 		}
 
-		if !k.push(messageBytes, k.config.MessagesV1Topic, variables) {
+		if !k.pushV1(messageBytes, k.topicsV1.Messages, variables) {
 			return
 		}
 
-		if !common.IsEmpty(k.config.AgentsV1Topic) {
+		if !utils.IsEmpty(k.topicsV1.Agents) {
 
 			agent := KafkaAgentV1{
 				Timestamp: m.TimeMs,
@@ -245,13 +254,13 @@ func (k *KafkaOutput) sendV1(m *common.Message, variables map[string]string) {
 
 			agentBytes, err := json.Marshal(agent)
 			if err == nil {
-				k.push(agentBytes, k.config.AgentsV1Topic, variables)
+				k.pushV1(agentBytes, k.topicsV1.Agents, variables)
 			} else {
 				log.Error(err)
 			}
 		}
 
-		if !common.IsEmpty(k.config.EventsV1Topic) {
+		if !utils.IsEmpty(k.topicsV1.Events) {
 
 			for key, value := range eventValues {
 
@@ -265,14 +274,14 @@ func (k *KafkaOutput) sendV1(m *common.Message, variables map[string]string) {
 
 				eventBytes, err := json.Marshal(event)
 				if err == nil {
-					k.push(eventBytes, k.config.EventsV1Topic, variables)
+					k.pushV1(eventBytes, k.topicsV1.Events, variables)
 				} else {
 					log.Error(err)
 				}
 			}
 		}
 
-		if !common.IsEmpty(k.config.AttributesV1Topic) {
+		if !utils.IsEmpty(k.topicsV1.Attributes) {
 
 			for key, value := range attributeValues {
 
@@ -286,7 +295,7 @@ func (k *KafkaOutput) sendV1(m *common.Message, variables map[string]string) {
 
 				attributeBytes, err := json.Marshal(attribute)
 				if err == nil {
-					k.push(attributeBytes, k.config.AttributesV1Topic, variables)
+					k.pushV1(attributeBytes, k.topicsV1.Attributes, variables)
 				} else {
 					log.Error(err)
 				}
@@ -325,7 +334,7 @@ func (k *KafkaOutput) Send(m *common.Message, variables map[string]string) {
 func makeKafkaProducer(wg *sync.WaitGroup, brokers string, config *sarama.Config) *sarama.SyncProducer {
 
 	brks := strings.Split(brokers, ",")
-	if len(brks) == 0 || common.IsEmpty(brokers) {
+	if len(brks) == 0 || utils.IsEmpty(brokers) {
 
 		log.Debug("Kafka brokers are not defined. Skipped.")
 		return nil
@@ -342,39 +351,36 @@ func makeKafkaProducer(wg *sync.WaitGroup, brokers string, config *sarama.Config
 	return &producer
 }
 
-func NewKafkaOutput(wg *sync.WaitGroup, clientID string, brokers string, config *KafkaConfig) *KafkaOutput {
+func NewKafkaOutput(wg *sync.WaitGroup, options KafkaOutputOptions, topicsV1 KafkaOutputTopicsV1) *KafkaOutput {
 
 	cfg := sarama.NewConfig()
 	cfg.Version = sarama.V1_1_1_0
 
-	if !common.IsEmpty(clientID) {
-		cfg.ClientID = clientID
+	if !utils.IsEmpty(options.ClientID) {
+		cfg.ClientID = options.ClientID
 	}
 
 	cfg.Producer.Return.Successes = true
 	cfg.Producer.Return.Errors = true
 
-	if config != nil {
+	cfg.Producer.Flush.Frequency = time.Second * time.Duration(options.FlushFrequency)
+	cfg.Producer.Flush.MaxMessages = options.FlushMaxMessages
 
-		cfg.Producer.Flush.Frequency = time.Second * time.Duration(config.FlushFrequency)
-		cfg.Producer.Flush.MaxMessages = config.FlushMaxMessages
+	cfg.Net.MaxOpenRequests = options.NetMaxOpenRequests
+	cfg.Net.DialTimeout = time.Second * time.Duration(options.NetDialTimeout)
+	cfg.Net.ReadTimeout = time.Second * time.Duration(options.NetReadTimeout)
+	cfg.Net.WriteTimeout = time.Second * time.Duration(options.NetWriteTimeout)
 
-		cfg.Net.MaxOpenRequests = config.NetMaxOpenRequests
-		cfg.Net.DialTimeout = time.Second * time.Duration(config.NetDialTimeout)
-		cfg.Net.ReadTimeout = time.Second * time.Duration(config.NetReadTimeout)
-		cfg.Net.WriteTimeout = time.Second * time.Duration(config.NetWriteTimeout)
-	}
-
-	producer := makeKafkaProducer(wg, brokers, cfg)
+	producer := makeKafkaProducer(wg, options.Brokers, cfg)
 	if producer == nil {
 		return nil
 	}
 
 	return &KafkaOutput{
 		wg:       wg,
-		brokers:  brokers,
 		producer: producer,
-		config:   config,
+		options:  options,
+		topicsV1: topicsV1,
 	}
 }
 

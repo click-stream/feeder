@@ -11,6 +11,7 @@ import (
 
 	"github.com/click-stream/feeder/common"
 	"github.com/click-stream/feeder/processor"
+	"github.com/devopsext/utils"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -20,14 +21,18 @@ var httpInputRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help: "Count of all http input requests",
 }, []string{"feeder_http_input_url"})
 
+type HttpInputOptions struct {
+	Listen string
+	Tls    bool
+	Cert   string
+	Key    string
+	Chain  string
+	URLv1  string
+}
+
 type HttpInput struct {
-	v1Url    string
-	listen   string
-	tls      bool
-	cert     string
-	key      string
-	chain    string
-	v1Config *processor.V1ProcessorConfig
+	options          HttpInputOptions
+	processorOptions processor.ProcessorOptions
 }
 
 func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
@@ -43,30 +48,30 @@ func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
 		var caPool *x509.CertPool
 		var certificates []tls.Certificate
 
-		if h.tls {
+		if h.options.Tls {
 
 			// load certififcate
 			var cert []byte
-			if _, err := os.Stat(h.cert); err == nil {
+			if _, err := os.Stat(h.options.Cert); err == nil {
 
-				cert, err = ioutil.ReadFile(h.cert)
+				cert, err = ioutil.ReadFile(h.options.Cert)
 				if err != nil {
 					log.Panic(err)
 				}
 			} else {
-				cert = []byte(h.cert)
+				cert = []byte(h.options.Cert)
 			}
 
 			// load key
 			var key []byte
-			if _, err := os.Stat(h.key); err == nil {
+			if _, err := os.Stat(h.options.Key); err == nil {
 
-				key, err = ioutil.ReadFile(h.key)
+				key, err = ioutil.ReadFile(h.options.Key)
 				if err != nil {
 					log.Panic(err)
 				}
 			} else {
-				key = []byte(h.key)
+				key = []byte(h.options.Key)
 			}
 
 			// make pair from certificate and pair
@@ -79,14 +84,14 @@ func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
 
 			// load CA chain
 			var chain []byte
-			if _, err := os.Stat(h.chain); err == nil {
+			if _, err := os.Stat(h.options.Chain); err == nil {
 
-				chain, err = ioutil.ReadFile(h.chain)
+				chain, err = ioutil.ReadFile(h.options.Chain)
 				if err != nil {
 					log.Panic(err)
 				}
 			} else {
-				chain = []byte(h.chain)
+				chain = []byte(h.options.Chain)
 			}
 
 			// make pool of chains
@@ -100,20 +105,20 @@ func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
 
 		router := mux.NewRouter()
 
-		if !common.IsEmpty(h.v1Url) {
+		if !utils.IsEmpty(h.options.URLv1) {
 
-			//mux.HandleFunc(h.v1Url, func(w http.ResponseWriter, r *http.Request) {
-			router.HandleFunc(h.v1Url, func(w http.ResponseWriter, r *http.Request) {
+			router.HandleFunc(h.options.URLv1, func(w http.ResponseWriter, r *http.Request) {
 				httpInputRequests.WithLabelValues(r.URL.Path).Inc()
-				processor.NewV1Processor(outputs, h.v1Config).HandleHttpRequest(w, r)
+				processor.NewProcessorV1(outputs, &h.processorOptions).HandleHttpRequest(w, r)
 			})
-			router.HandleFunc(h.v1Url+"/{id:[a-z0-9]{8,8}}", func(w http.ResponseWriter, r *http.Request) {
+
+			router.HandleFunc(h.options.URLv1+"/{id:[a-z0-9]{8,8}}", func(w http.ResponseWriter, r *http.Request) {
 				httpInputRequests.WithLabelValues(r.URL.Path).Inc()
-				processor.NewV1Processor(outputs, h.v1Config).HandleHttpRequest(w, r)
+				processor.NewProcessorV1(outputs, &h.processorOptions).HandleHttpRequest(w, r)
 			})
 		}
 
-		listener, err := net.Listen("tcp", h.listen)
+		listener, err := net.Listen("tcp", h.options.Listen)
 		if err != nil {
 			log.Panic(err)
 		}
@@ -123,7 +128,7 @@ func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
 		//srv := &http.Server{Handler: mux}
 		srv := &http.Server{Handler: router}
 
-		if h.tls {
+		if h.options.Tls {
 
 			srv.TLSConfig = &tls.Config{
 				Certificates: certificates,
@@ -144,18 +149,11 @@ func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
 	}(wg)
 }
 
-func NewHttpInput(v1Url string, listen string, tls bool,
-	cert string, key string, chain string,
-	v1Config *processor.V1ProcessorConfig) *HttpInput {
+func NewHttpInput(options HttpInputOptions, processorOptions processor.ProcessorOptions) *HttpInput {
 
 	return &HttpInput{
-		v1Url:    v1Url,
-		listen:   listen,
-		tls:      tls,
-		cert:     cert,
-		key:      key,
-		chain:    chain,
-		v1Config: v1Config,
+		options:          options,
+		processorOptions: processorOptions,
 	}
 }
 
