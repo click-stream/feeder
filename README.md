@@ -1,13 +1,16 @@
 # Feeder
 
-Http service which consumes Clickstream data and pushs to Kafka.
-
+Http service which consumes Clickstream data and pushs it to Kafka in a proper Clickhouse format.
 
 [![GoDoc](https://godoc.org/github.com/click-stream/feeder?status.svg)](https://godoc.org/github.com/click-stream/feeder)
 [![build status](https://img.shields.io/travis/click-stream/feeder/master.svg?style=flat-square)](https://travis-ci.org/click-stream/feeder)
 
 ## Features
 
+- Support json requests with mixed events and attributes
+- Determine device type, browser name, browser version, OS platform, OS name and version
+- Provide Prometheus endpoint, input & output metrics
+- Use hashes to pack events, atrributes and agents
 
 ## Build
 
