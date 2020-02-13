@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -80,12 +81,29 @@ func (p *ProcessorV1) HandleHttpRequest(w http.ResponseWriter, r *http.Request) 
 
 	log.Debug("Body => %s", body)
 
+	supportedTypes := []interface{}{"application/json", "application/x-base64"}
 	contentType := r.Header.Get("Content-Type")
-	if contentType != "application/json" {
 
-		log.Error("Content-Type=%s, expect application/json", contentType)
-		http.Error(w, "invalid Content-Type, expect application/json", http.StatusUnsupportedMediaType)
+	if !utils.Contains(supportedTypes, contentType) {
+
+		log.Error("Content-Type=%s, expect %s", contentType, supportedTypes)
+		http.Error(w, "invalid Content-Type", http.StatusUnsupportedMediaType)
 		return
+	}
+
+	if contentType == "application/x-base64" {
+
+		data := make([]byte, base64.StdEncoding.DecodedLen(len(body)))
+
+		l, err := base64.StdEncoding.Decode(data, body)
+
+		if err != nil {
+			log.Error("Expect application/x-base64")
+			http.Error(w, "invalid Content-Type", http.StatusUnsupportedMediaType)
+			return
+		}
+
+		body = data[:l]
 	}
 
 	var v1 *common.ObjectV1

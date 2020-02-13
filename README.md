@@ -58,7 +58,7 @@ go build
 curl -H "Content-Type: application/json" -d @v1.json http://127.0.0.1:1081/v1
 ```
 
-### Get result from Feeder
+### Output from Feeder
 
 ```
 Body => {  "origin": "https://www.somewebsite.com",  "agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 11_4_1 like Mac OS X)",  "session": "sdfdfwdf33451345345",  "cookie": "PHPSESSID",  "referrer": "https://google.com/?text=some",  "lang": "en",  "fingerprint": "2",  "country": "US",  "property": "other",  "events": [    {"object":"player","event":"resume","url":"https://videohub.com/some_video.mp4","position":"30:41"},    {"event":"load","object":"document"}  ],  "attributes": [    {"name":"attr1","value":"some","when":"01.01.2019"}  ]}
