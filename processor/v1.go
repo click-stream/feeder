@@ -47,21 +47,21 @@ func (p *ProcessorV1) parseAgent(agent string) *common.AgentV1 {
 }
 
 func SetupCors(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Cookie")
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	//w.Header().Set("Access-Control-Allow-Origin", "*")
+	//w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+	//w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Cookie")
+	//w.Header().Set("Access-Control-Allow-Credentials", "true")
 }
 
 func (p *ProcessorV1) HandleHttpRequest(w http.ResponseWriter, r *http.Request) {
 
 	requestVariables := mux.Vars(r)
 
-	SetupCors(w, r)
+	/*SetupCors(w, r)
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(200)
 		return
-	}
+	}*/
 
 	var body []byte
 
