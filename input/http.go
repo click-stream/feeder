@@ -28,11 +28,21 @@ type HttpInputOptions struct {
 	Key    string
 	Chain  string
 	URLv1  string
+	Cors   bool
 }
 
 type HttpInput struct {
 	options          HttpInputOptions
 	processorOptions processor.ProcessorOptions
+}
+
+func (h *HttpInput) SetupCors(w http.ResponseWriter, r *http.Request) {
+	if h.options.Cors {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Cookie")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+	}
 }
 
 func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
@@ -109,11 +119,13 @@ func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
 
 			router.HandleFunc(h.options.URLv1, func(w http.ResponseWriter, r *http.Request) {
 				httpInputRequests.WithLabelValues(r.URL.Path).Inc()
+				h.SetupCors(w,r)
 				processor.NewProcessorV1(outputs, &h.processorOptions).HandleHttpRequest(w, r)
 			})
 
 			router.HandleFunc(h.options.URLv1+"/{id:[a-z0-9]{8,8}}", func(w http.ResponseWriter, r *http.Request) {
 				httpInputRequests.WithLabelValues(r.URL.Path).Inc()
+				h.SetupCors(w,r)
 				processor.NewProcessorV1(outputs, &h.processorOptions).HandleHttpRequest(w, r)
 			})
 		}

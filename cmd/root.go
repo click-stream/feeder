@@ -52,6 +52,7 @@ var httpInputOptions = input.HttpInputOptions{
 	Key:    env.Get("FEEDER_HTTP_KEY", "").(string),
 	Chain:  env.Get("FEEDER_HTTP_CHAIN", "").(string),
 	URLv1:  env.Get("FEEDER_HTTP_URL_V1", "/v1").(string),
+	Cors:   env.Get("FEEDER_CORS_ENABLE", false).(bool),
 }
 
 var processorOptions = processor.ProcessorOptions{
@@ -183,6 +184,7 @@ func Execute() {
 	flags.StringVar(&httpInputOptions.Key, "http-key", httpInputOptions.Key, "Http key file or content")
 	flags.StringVar(&httpInputOptions.Chain, "http-chain", httpInputOptions.Chain, "Http CA chain file or content")
 	flags.StringVar(&httpInputOptions.URLv1, "http-url-v1", httpInputOptions.URLv1, "Http url")
+	flags.BoolVar(&httpInputOptions.Cors, "http-cors-enable", httpInputOptions.Cors, "Http CORS true/false")
 
 	flags.StringVar(&processorOptions.HeaderOrigin, "http-header-origin", processorOptions.HeaderOrigin, "Http header origin")
 	flags.StringVar(&processorOptions.HeaderIPv4, "http-header-ipv4", processorOptions.HeaderIPv4, "Http header ipv4")
