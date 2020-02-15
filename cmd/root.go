@@ -52,7 +52,7 @@ var httpInputOptions = input.HttpInputOptions{
 	Key:    env.Get("FEEDER_HTTP_KEY", "").(string),
 	Chain:  env.Get("FEEDER_HTTP_CHAIN", "").(string),
 	URLv1:  env.Get("FEEDER_HTTP_URL_V1", "/v1").(string),
-	Cors:   env.Get("FEEDER_CORS_ENABLE", false).(bool),
+	Cors:   env.Get("FEEDER_HTTP_CORS_ENABLE", false).(bool),
 }
 
 var processorOptions = processor.ProcessorOptions{
