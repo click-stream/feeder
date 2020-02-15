@@ -100,7 +100,7 @@ Flags:
       --http-listen string                   Http listen (default ":80")
       --http-tls                             Http TLS
       --http-url-v1 string                   Http url (default "/v1")
-      --http-cors-enabled                    Http CORS enabled true/false (default false)
+      --http-cors                            Http CORS enabled true/false (default false)
       --kafka-brokers string                 Kafka brokers
       --kafka-client-id string               Kafka client id (default "feeder_kafka")
       --kafka-flush-frequency int            Kafka Producer flush frequency (default 1)
@@ -136,7 +136,7 @@ For containerization purpose all command switches have environment variables ana
 - FEEDER_HTTP_KEY
 - FEEDER_HTTP_CHAIN
 - FEEDER_HTTP_URL_V1
-- FEEDER_HTTP_CORS_ENABLE
+- FEEDER_HTTP_CORS
 - FEEDER_HTTP_HEADER_ORIGIN
 - FEEDER_HTTP_HEADER_IPV4
 - FEEDER_HTTP_HEADER_SESSION
