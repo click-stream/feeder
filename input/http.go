@@ -3,23 +3,76 @@ package input
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/click-stream/feeder/common"
 	"github.com/click-stream/feeder/processor"
 	"github.com/devopsext/utils"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/click-stream/feeder/thirdparty/ratecounter"
 )
 
 var httpInputRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Name: "feeder_http_input_requests",
 	Help: "Count of all http input requests",
 }, []string{"feeder_http_input_url"})
+
+var httpInputRequestsRPS = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Name: "feeder_http_input_requests_rps",
+	Help: "RPS of all http input requests per url",
+}, []string{"feeder_http_input_url_rps"})
+
+var httpInputRequestsBPS = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Name: "feeder_http_input_requests_bps",
+	Help: "BPS of all http input requests per url",
+}, []string{"feeder_http_input_url_bps"})
+
+type RequestsRate struct {
+	rps *ratecounter.RateCounter
+	bps *ratecounter.RateCounter
+}
+
+func newRequestsRate(requestsCount int64, bytesCount int64) *RequestsRate {
+	rr := &RequestsRate{
+		rps: ratecounter.NewRateCounter(1 * time.Second).WithResolution(60),
+		bps: ratecounter.NewRateCounter(1 * time.Second).WithResolution(60),
+	}
+	rr.incr(requestsCount, bytesCount)
+	return rr
+}
+
+func (rr *RequestsRate) incr(requestsCount int64, bytesCount int64) {
+	rr.rps.Incr(requestsCount)
+	rr.bps.Incr(bytesCount)
+}
+
+var httpInputRequestsRates = make(map[string]*RequestsRate)
+
+func getRequestsRate(httpInputRequestsRates map[string]*RequestsRate, r *http.Request, rCount int64) *RequestsRate {
+	requestVariables := mux.Vars(r)
+	var rLength int64 = 0
+	if rCount > 0 {
+		rLength = r.ContentLength
+	}
+	if feederId, exist := requestVariables["feeder_id"]; exist {
+		if rr, ok := httpInputRequestsRates[feederId]; ok {
+			rr.incr(rCount, rLength)
+			return rr
+		} else {
+			httpInputRequestsRates[feederId] = newRequestsRate(rCount, rLength)
+			return httpInputRequestsRates[feederId]
+		}
+	}
+	return nil
+}
 
 type HttpInputOptions struct {
 	Listen string
@@ -119,14 +172,36 @@ func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
 
 			router.HandleFunc(h.options.URLv1, func(w http.ResponseWriter, r *http.Request) {
 				httpInputRequests.WithLabelValues(r.URL.Path).Inc()
-				h.SetupCors(w,r)
+				h.SetupCors(w, r)
 				processor.NewProcessorV1(outputs, &h.processorOptions).HandleHttpRequest(w, r)
 			})
 
-			router.HandleFunc(h.options.URLv1+"/{id:[a-z0-9]{8,8}}", func(w http.ResponseWriter, r *http.Request) {
+			router.HandleFunc(h.options.URLv1+"/{feeder_id:[a-z0-9]{8,8}}", func(w http.ResponseWriter, r *http.Request) {
 				httpInputRequests.WithLabelValues(r.URL.Path).Inc()
-				h.SetupCors(w,r)
+
+				rr := getRequestsRate(httpInputRequestsRates, r, 1)
+				if rr != nil {
+					rps := float64(rr.rps.Rate())
+					bps := float64(rr.bps.Rate())
+					fmt.Println("rps: ", rps, " bps: ", bps)
+					httpInputRequestsRPS.WithLabelValues(r.URL.Path).Set(rps)
+					httpInputRequestsBPS.WithLabelValues(r.URL.Path).Set(bps)
+				}
+
+				h.SetupCors(w, r)
 				processor.NewProcessorV1(outputs, &h.processorOptions).HandleHttpRequest(w, r)
+			})
+			router.HandleFunc(h.options.URLv1+"/{feeder_id:[a-z0-9]{8,8}}/rps", func(w http.ResponseWriter, r *http.Request) {
+				rr := getRequestsRate(httpInputRequestsRates, r, 0)
+				if rr != nil {
+					w.Write([]byte(rr.rps.String()))
+				}
+			})
+			router.HandleFunc(h.options.URLv1+"/{feeder_id:[a-z0-9]{8,8}}/bps", func(w http.ResponseWriter, r *http.Request) {
+				rr := getRequestsRate(httpInputRequestsRates, r, 0)
+				if rr != nil {
+					w.Write([]byte(rr.bps.String()))
+				}
 			})
 		}
 
@@ -171,4 +246,6 @@ func NewHttpInput(options HttpInputOptions, processorOptions processor.Processor
 
 func init() {
 	prometheus.Register(httpInputRequests)
+	prometheus.Register(httpInputRequestsRPS)
+	prometheus.Register(httpInputRequestsBPS)
 }

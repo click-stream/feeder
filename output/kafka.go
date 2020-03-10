@@ -109,8 +109,8 @@ func (k *KafkaOutput) pushV1(bytes []byte, topic string, variables map[string]st
 
 	if len(variables) > 0 {
 
-		if idValue, exist := variables["id"]; exist {
-			topic = fmt.Sprintf(topic, idValue)
+		if feederId, exist := variables["feeder_id"]; exist {
+			topic = fmt.Sprintf(topic, feederId)
 		} else {
 			topic = fmt.Sprintf(topic, k.topicsV1.DefaultPart)
 		}
