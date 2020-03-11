@@ -192,12 +192,14 @@ func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
 				processor.NewProcessorV1(outputs, &h.processorOptions).HandleHttpRequest(w, r)
 			})
 			router.HandleFunc(h.options.URLv1+"/{feeder_id:[a-z0-9]{8,8}}/rps", func(w http.ResponseWriter, r *http.Request) {
+				h.SetupCors(w, r)
 				rr := getRequestsRate(httpInputRequestsRates, r, 0)
 				if rr != nil {
 					w.Write([]byte(rr.rps.String()))
 				}
 			})
 			router.HandleFunc(h.options.URLv1+"/{feeder_id:[a-z0-9]{8,8}}/bps", func(w http.ResponseWriter, r *http.Request) {
+				h.SetupCors(w, r)
 				rr := getRequestsRate(httpInputRequestsRates, r, 0)
 				if rr != nil {
 					w.Write([]byte(rr.bps.String()))
