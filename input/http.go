@@ -3,6 +3,7 @@ package input
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -191,20 +192,24 @@ func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
 				h.SetupCors(w, r)
 				processor.NewProcessorV1(outputs, &h.processorOptions).HandleHttpRequest(w, r)
 			})
-			router.HandleFunc(h.options.URLv1+"/{feeder_id:[a-z0-9]{8,8}}/rps", func(w http.ResponseWriter, r *http.Request) {
+			router.HandleFunc(h.options.URLv1+"/{feeder_id:[a-z0-9]{8,8}}/rate", func(w http.ResponseWriter, r *http.Request) {
 				h.SetupCors(w, r)
+				if r.Method == "OPTIONS" {
+					w.WriteHeader(200)
+					return
+				}
 				rr := getRequestsRate(httpInputRequestsRates, r, 0)
 				if rr != nil {
-					w.Write([]byte(rr.rps.String()))
+					log.Debug("rps: %s, bps: %s", rr.rps.String(), rr.bps.String())
+					json := fmt.Sprintf("{\n  rps:'%s', \n  bps:'%s',\n}", rr.rps.String(), rr.bps.String())
+					if _, err := w.Write([]byte(json)); err != nil {
+						log.Error("Can't write response: %v", err)
+						http.Error(w, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
+						return
+					}
 				}
 			})
-			router.HandleFunc(h.options.URLv1+"/{feeder_id:[a-z0-9]{8,8}}/bps", func(w http.ResponseWriter, r *http.Request) {
-				h.SetupCors(w, r)
-				rr := getRequestsRate(httpInputRequestsRates, r, 0)
-				if rr != nil {
-					w.Write([]byte(rr.bps.String()))
-				}
-			})
+
 		}
 
 		listener, err := net.Listen("tcp", h.options.Listen)
