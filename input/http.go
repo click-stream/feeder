@@ -3,6 +3,7 @@ package input
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -200,9 +201,21 @@ func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
 				}
 				rr := getRequestsRate(httpInputRequestsRates, r, 0)
 				if rr != nil {
-					log.Debug("rps: %s, bps: %s", rr.rps.String(), rr.bps.String())
-					json := fmt.Sprintf("{\n  rps:'%s', \n  bps:'%s',\n}", rr.rps.String(), rr.bps.String())
-					if _, err := w.Write([]byte(json)); err != nil {
+
+					rate := &struct {
+						Rps int64 `json:"rps"`
+						Bps int64 `json:"bps"`
+					}{
+						Rps: rr.rps.Rate(),
+						Bps: rr.bps.Rate(),
+					}
+					str, err := json.Marshal(rate)
+					if err != nil {
+						log.Error("Can't marshal rate: %v", err)
+						return
+					}
+					log.Debug(string(str))
+					if _, err := w.Write(str); err != nil {
 						log.Error("Can't write response: %v", err)
 						http.Error(w, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
 						return
