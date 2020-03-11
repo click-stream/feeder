@@ -3,7 +3,6 @@ package input
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -181,9 +180,10 @@ func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
 
 				rr := getRequestsRate(httpInputRequestsRates, r, 1)
 				if rr != nil {
+					log.Debug("rps: %s, bps: %s", rr.rps.String(), rr.bps.String())
 					rps := float64(rr.rps.Rate())
 					bps := float64(rr.bps.Rate())
-					fmt.Println("rps: ", rps, " bps: ", bps)
+					//fmt.Println("rps: ", rps, " bps: ", bps)
 					httpInputRequestsRPS.WithLabelValues(r.URL.Path).Set(rps)
 					httpInputRequestsBPS.WithLabelValues(r.URL.Path).Set(bps)
 				}
