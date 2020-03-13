@@ -14,11 +14,10 @@ import (
 
 	"github.com/click-stream/feeder/common"
 	"github.com/click-stream/feeder/processor"
+	"github.com/click-stream/ratecounter"
 	"github.com/devopsext/utils"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/click-stream/feeder/thirdparty/ratecounter"
 )
 
 var httpInputRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -180,6 +179,9 @@ func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
 			router.HandleFunc(h.options.URLv1+"/{feeder_id:[a-z0-9]{8,8}}", func(w http.ResponseWriter, r *http.Request) {
 				httpInputRequests.WithLabelValues(r.URL.Path).Inc()
 
+
+				h.SetupCors(w, r)
+				processor.NewProcessorV1(outputs, &h.processorOptions).HandleHttpRequest(w, r)
 				rr := getRequestsRate(httpInputRequestsRates, r, 1)
 				if rr != nil {
 					log.Debug("rps: %s, bps: %s", rr.rps.String(), rr.bps.String())
@@ -190,8 +192,6 @@ func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
 					httpInputRequestsBPS.WithLabelValues(r.URL.Path).Set(bps)
 				}
 
-				h.SetupCors(w, r)
-				processor.NewProcessorV1(outputs, &h.processorOptions).HandleHttpRequest(w, r)
 			})
 			router.HandleFunc(h.options.URLv1+"/{feeder_id:[a-z0-9]{8,8}}/rate", func(w http.ResponseWriter, r *http.Request) {
 				h.SetupCors(w, r)
