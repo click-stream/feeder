@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,32 +57,38 @@ func (rr *RequestsRate) incr(requestsCount int64, bytesCount int64) {
 
 var httpInputRequestsRates = make(map[string]*RequestsRate)
 
-func getRequestsRate(httpInputRequestsRates map[string]*RequestsRate, r *http.Request, rCount int64) *RequestsRate {
+func getRequestsRateByFeederId(httpInputRequestsRates map[string]*RequestsRate, r *http.Request, rCount int64) *RequestsRate {
 	requestVariables := mux.Vars(r)
-	var rLength int64 = 0
-	if rCount > 0 {
-		rLength = r.ContentLength
-	}
 	if feederId, exist := requestVariables["feeder_id"]; exist {
-		if rr, ok := httpInputRequestsRates[feederId]; ok {
-			rr.incr(rCount, rLength)
-			return rr
-		} else {
-			httpInputRequestsRates[feederId] = newRequestsRate(rCount, rLength)
-			return httpInputRequestsRates[feederId]
-		}
+		return getCustomRequestsRate(feederId, httpInputRequestsRates, r, rCount)
 	}
 	return nil
 }
 
+func getCustomRequestsRate(custom string, httpInputRequestsRates map[string]*RequestsRate, r *http.Request, rCount int64) *RequestsRate {
+	var rLength int64 = 0
+	if rCount > 0 {
+		rLength = r.ContentLength
+	}
+	if rr, ok := httpInputRequestsRates[custom]; ok {
+		rr.incr(rCount, rLength)
+		log.Debug(custom+" | "+r.URL.Path+" | rps: %s, bps: %s", rr.rps.String(), rr.bps.String())
+		return rr
+	} else {
+		httpInputRequestsRates[custom] = newRequestsRate(rCount, rLength)
+		return httpInputRequestsRates[custom]
+	}
+}
+
 type HttpInputOptions struct {
-	Listen string
-	Tls    bool
-	Cert   string
-	Key    string
-	Chain  string
-	URLv1  string
-	Cors   bool
+	Listen          string
+	Tls             bool
+	Cert            string
+	Key             string
+	Chain           string
+	URLv1           string
+	Cors            bool
+	FeederIdPattern string
 }
 
 type HttpInput struct {
@@ -174,34 +181,23 @@ func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
 				httpInputRequests.WithLabelValues(r.URL.Path).Inc()
 				h.SetupCors(w, r)
 				processor.NewProcessorV1(outputs, &h.processorOptions).HandleHttpRequest(w, r)
-			})
-
-			router.HandleFunc(h.options.URLv1+"/{feeder_id:[a-z0-9]{8,8}}", func(w http.ResponseWriter, r *http.Request) {
-				httpInputRequests.WithLabelValues(r.URL.Path).Inc()
-
-
-				h.SetupCors(w, r)
-				processor.NewProcessorV1(outputs, &h.processorOptions).HandleHttpRequest(w, r)
-				rr := getRequestsRate(httpInputRequestsRates, r, 1)
+				rr := getCustomRequestsRate(h.options.URLv1, httpInputRequestsRates, r, 1)
 				if rr != nil {
-					log.Debug("rps: %s, bps: %s", rr.rps.String(), rr.bps.String())
 					rps := float64(rr.rps.Rate())
 					bps := float64(rr.bps.Rate())
-					//fmt.Println("rps: ", rps, " bps: ", bps)
 					httpInputRequestsRPS.WithLabelValues(r.URL.Path).Set(rps)
 					httpInputRequestsBPS.WithLabelValues(r.URL.Path).Set(bps)
 				}
-
 			})
-			router.HandleFunc(h.options.URLv1+"/{feeder_id:[a-z0-9]{8,8}}/rate", func(w http.ResponseWriter, r *http.Request) {
+
+			router.HandleFunc(h.options.URLv1+"/rate", func(w http.ResponseWriter, r *http.Request) {
 				h.SetupCors(w, r)
 				if r.Method == "OPTIONS" {
 					w.WriteHeader(200)
 					return
 				}
-				rr := getRequestsRate(httpInputRequestsRates, r, 0)
+				rr := getCustomRequestsRate(h.options.URLv1, httpInputRequestsRates, r, 0)
 				if rr != nil {
-
 					rate := &struct {
 						Rps int64 `json:"rps"`
 						Bps int64 `json:"bps"`
@@ -222,6 +218,52 @@ func (h *HttpInput) Start(wg *sync.WaitGroup, outputs *common.Outputs) {
 					}
 				}
 			})
+
+			if len(strings.TrimSpace(h.options.FeederIdPattern)) > 0 {
+				router.HandleFunc(h.options.URLv1+"/"+h.options.FeederIdPattern, func(w http.ResponseWriter, r *http.Request) {
+					httpInputRequests.WithLabelValues(r.URL.Path).Inc()
+
+					h.SetupCors(w, r)
+					processor.NewProcessorV1(outputs, &h.processorOptions).HandleHttpRequest(w, r)
+					rr := getRequestsRateByFeederId(httpInputRequestsRates, r, 1)
+					if rr != nil {
+						rps := float64(rr.rps.Rate())
+						bps := float64(rr.bps.Rate())
+						httpInputRequestsRPS.WithLabelValues(r.URL.Path).Set(rps)
+						httpInputRequestsBPS.WithLabelValues(r.URL.Path).Set(bps)
+					}
+
+				})
+				router.HandleFunc(h.options.URLv1+"/"+h.options.FeederIdPattern+"/rate", func(w http.ResponseWriter, r *http.Request) {
+					h.SetupCors(w, r)
+					if r.Method == "OPTIONS" {
+						w.WriteHeader(200)
+						return
+					}
+					rr := getRequestsRateByFeederId(httpInputRequestsRates, r, 0)
+					if rr != nil {
+
+						rate := &struct {
+							Rps int64 `json:"rps"`
+							Bps int64 `json:"bps"`
+						}{
+							Rps: rr.rps.Rate(),
+							Bps: rr.bps.Rate(),
+						}
+						str, err := json.Marshal(rate)
+						if err != nil {
+							log.Error("Can't marshal rate: %v", err)
+							return
+						}
+						log.Debug(string(str))
+						if _, err := w.Write(str); err != nil {
+							log.Error("Can't write response: %v", err)
+							http.Error(w, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
+							return
+						}
+					}
+				})
+			}
 
 		}
 
