@@ -101,6 +101,7 @@ Flags:
       --http-tls                             Http TLS
       --http-url-v1 string                   Http url (default "/v1")
       --http-cors                            Http CORS enabled true/false (default false)
+      --http-feeder-id-pattern               Http feeder id pattern (default "{feeder_id:[a-z0-9]{8,8}}")
       --kafka-brokers string                 Kafka brokers
       --kafka-client-id string               Kafka client id (default "feeder_kafka")
       --kafka-flush-frequency int            Kafka Producer flush frequency (default 1)
