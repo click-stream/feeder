@@ -214,95 +214,93 @@ func (k *KafkaOutput) sendV1(m *common.Message, variables map[string]string) {
 		}
 	}
 
-	if !utils.IsEmpty(k.topicsV1.Messages) {
+	if utils.IsEmpty(k.topicsV1.Messages) {
+		return
+	}
 
-		message := KafkaMessageV1{
-			Timestamp:   m.TimeMs,
-			Origin:      v1.Origin,
-			IPv4:        v1.IPv4,
-			Agent:       agentHash,
-			Session:     v1.Session,
-			Referrer:    v1.Referrer,
-			Country:     v1.Country,
-			Lang:        v1.Lang,
-			Fingerprint: v1.Fingerprint,
-			Provider:    v1.Provider,
-			Property:    v1.Property,
-			Events:      eventHashes,
-			Attributes:  attributeHashes,
+	if !utils.IsEmpty(k.topicsV1.Agents) {
+
+		agent := KafkaAgentV1{
+			Timestamp: m.TimeMs,
+			Agent:     agentHash,
+			Property:  v1.Property,
+			Raw:       v1.AgentString,
+			Json:      agentJson,
 		}
 
-		messageBytes, err := json.Marshal(message)
-		if err != nil {
+		agentBytes, err := json.Marshal(agent)
+		if err == nil {
+			k.pushV1(agentBytes, k.topicsV1.Agents, variables)
+		} else {
 			log.Error(err)
-			return
 		}
+	}
 
-		if !k.pushV1(messageBytes, k.topicsV1.Messages, variables) {
-			return
-		}
+	if !utils.IsEmpty(k.topicsV1.Events) {
 
-		if !utils.IsEmpty(k.topicsV1.Agents) {
+		for key, value := range eventValues {
 
-			agent := KafkaAgentV1{
+			event := KafkaEventV1{
 				Timestamp: m.TimeMs,
-				Agent:     agentHash,
+				Event:     key,
 				Property:  v1.Property,
-				Raw:       v1.AgentString,
-				Json:      agentJson,
+				Json:      value,
+				Total:     eventCount[key],
 			}
 
-			agentBytes, err := json.Marshal(agent)
+			eventBytes, err := json.Marshal(event)
 			if err == nil {
-				k.pushV1(agentBytes, k.topicsV1.Agents, variables)
+				k.pushV1(eventBytes, k.topicsV1.Events, variables)
 			} else {
 				log.Error(err)
 			}
 		}
-
-		if !utils.IsEmpty(k.topicsV1.Events) {
-
-			for key, value := range eventValues {
-
-				event := KafkaEventV1{
-					Timestamp: m.TimeMs,
-					Event:     key,
-					Property:  v1.Property,
-					Json:      value,
-					Total:     eventCount[key],
-				}
-
-				eventBytes, err := json.Marshal(event)
-				if err == nil {
-					k.pushV1(eventBytes, k.topicsV1.Events, variables)
-				} else {
-					log.Error(err)
-				}
-			}
-		}
-
-		if !utils.IsEmpty(k.topicsV1.Attributes) {
-
-			for key, value := range attributeValues {
-
-				attribute := KafkaAttributeV1{
-					Timestamp: m.TimeMs,
-					Attribute: key,
-					Property:  v1.Property,
-					Json:      value,
-					Total:     attributeCount[key],
-				}
-
-				attributeBytes, err := json.Marshal(attribute)
-				if err == nil {
-					k.pushV1(attributeBytes, k.topicsV1.Attributes, variables)
-				} else {
-					log.Error(err)
-				}
-			}
-		}
-
 	}
+
+	if !utils.IsEmpty(k.topicsV1.Attributes) {
+
+		for key, value := range attributeValues {
+
+			attribute := KafkaAttributeV1{
+				Timestamp: m.TimeMs,
+				Attribute: key,
+				Property:  v1.Property,
+				Json:      value,
+				Total:     attributeCount[key],
+			}
+
+			attributeBytes, err := json.Marshal(attribute)
+			if err == nil {
+				k.pushV1(attributeBytes, k.topicsV1.Attributes, variables)
+			} else {
+				log.Error(err)
+			}
+		}
+	}
+
+	message := KafkaMessageV1{
+		Timestamp:   m.TimeMs,
+		Origin:      v1.Origin,
+		IPv4:        v1.IPv4,
+		Agent:       agentHash,
+		Session:     v1.Session,
+		Referrer:    v1.Referrer,
+		Country:     v1.Country,
+		Lang:        v1.Lang,
+		Fingerprint: v1.Fingerprint,
+		Provider:    v1.Provider,
+		Property:    v1.Property,
+		Events:      eventHashes,
+		Attributes:  attributeHashes,
+	}
+
+	messageBytes, err := json.Marshal(message)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	k.pushV1(messageBytes, k.topicsV1.Messages, variables)
 }
 
 func (k *KafkaOutput) Send(m *common.Message, variables map[string]string) {
