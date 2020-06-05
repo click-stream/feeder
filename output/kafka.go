@@ -1,6 +1,7 @@
 package output
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -92,6 +93,12 @@ func byteHash32(b []byte) uint32 {
 	return h.Sum32()
 }
 
+func byteSha256(b []byte) []byte {
+	hasher := sha256.New()
+	hasher.Write(b)
+	return hasher.Sum(nil)
+}
+
 func hasElement(s uint32, array []uint32) bool {
 
 	for i := range array {
@@ -147,7 +154,7 @@ func (k *KafkaOutput) sendV1(m *common.Message, variables map[string]string) {
 	v1 := (m.Object).(*common.ObjectV1)
 
 	var agentJson = ""
-	agentHash := byteHash32([]byte(v1.AgentString))
+	agentHash := byteHash32(byteSha256([]byte(v1.AgentString)))
 
 	if v1.AgentObject != nil {
 
@@ -172,7 +179,7 @@ func (k *KafkaOutput) sendV1(m *common.Message, variables map[string]string) {
 			if err == nil {
 
 				eventString := string(eventBytes[:])
-				eventHash := byteHash32([]byte(eventString))
+				eventHash := byteHash32(byteSha256([]byte(eventString)))
 
 				if !hasElement(eventHash, eventHashes) {
 
@@ -199,7 +206,7 @@ func (k *KafkaOutput) sendV1(m *common.Message, variables map[string]string) {
 			if err == nil {
 
 				attributeString := string(attributeBytes[:])
-				attributeHash := byteHash32([]byte(attributeString))
+				attributeHash := byteHash32(byteSha256([]byte(attributeString)))
 
 				if !hasElement(attributeHash, attributeHashes) {
 
