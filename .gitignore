@@ -1,2 +1,5 @@
 .idea
 *.sh
+events.csv
+events.sql
+test.go

@@ -88,7 +88,7 @@ type KafkaAttributeV1 struct {
 }
 
 func byteHash32(b []byte) uint32 {
-	h := fnv.New32a()
+	h := fnv.New32()
 	h.Write(b)
 	return h.Sum32()
 }
