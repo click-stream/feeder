@@ -3,7 +3,7 @@
 Http service which consumes Clickstream data and pushs it to Kafka in a proper Clickhouse format.
 
 [![GoDoc](https://godoc.org/github.com/click-stream/feeder?status.svg)](https://godoc.org/github.com/click-stream/feeder)
-[![build status](https://travis-ci.com/github/click-stream/feeder.svg?branch=master)](https://app.travis-ci.com/github/click-stream/feeder)
+[![build status](https://app.travis-ci.com/click-stream/feeder.svg?branch=master)](https://app.travis-ci.com/github/click-stream/feeder)
 
 ## Features
 
