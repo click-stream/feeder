@@ -59,7 +59,7 @@ type KafkaMessageV1 struct {
 	Fingerprint string   `json:"fingerprint,omitempty"`
 	Provider    string   `json:"provider,omitempty"`
 	Property    string   `json:"property,omitempty"`
-	Events      []uint32 `json:"events,omitempty"`
+	Events      []uint64 `json:"events,omitempty"`
 	Attributes  []uint32 `json:"attributes,omitempty"`
 }
 
@@ -73,7 +73,7 @@ type KafkaAgentV1 struct {
 
 type KafkaEventV1 struct {
 	Timestamp uint64 `json:"timestamp,omitempty"`
-	Event     uint32 `json:"event,omitempty"`
+	Event     uint64 `json:"event,omitempty"`
 	Property  string `json:"property,omitempty"`
 	Json      string `json:"json,omitempty"`
 	Total     uint64 `json:"total,omitempty"`
@@ -93,13 +93,29 @@ func byteHash32(b []byte) uint32 {
 	return h.Sum32()
 }
 
+func byteHash64(b []byte) uint64 {
+	h := fnv.New64()
+	h.Write(b)
+	return h.Sum64()
+}
+
 func byteSha512(b []byte) []byte {
 	hasher := sha512.New()
 	hasher.Write(b)
 	return hasher.Sum(nil)
 }
 
-func hasElement(s uint32, array []uint32) bool {
+func hasElement32(s uint32, array []uint32) bool {
+
+	for i := range array {
+		if array[i] == s {
+			return true
+		}
+	}
+	return false
+}
+
+func hasElement64(s uint64, array []uint64) bool {
 
 	for i := range array {
 		if array[i] == s {
@@ -167,9 +183,9 @@ func (k *KafkaOutput) sendV1(m *common.Message, variables map[string]string) {
 		}
 	}
 
-	eventCount := make(map[uint32]uint64)
-	eventValues := make(map[uint32]string)
-	var eventHashes []uint32
+	eventCount := make(map[uint64]uint64)
+	eventValues := make(map[uint64]string)
+	var eventHashes []uint64
 
 	for _, event := range v1.Events {
 
@@ -179,9 +195,9 @@ func (k *KafkaOutput) sendV1(m *common.Message, variables map[string]string) {
 			if err == nil {
 
 				eventString := string(eventBytes[:])
-				eventHash := byteHash32(byteSha512([]byte(eventString)))
+				eventHash := byteHash64(byteSha512([]byte(eventString)))
 
-				if !hasElement(eventHash, eventHashes) {
+				if !hasElement64(eventHash, eventHashes) {
 
 					eventValues[eventHash] = eventString
 					eventHashes = append(eventHashes, eventHash)
@@ -208,7 +224,7 @@ func (k *KafkaOutput) sendV1(m *common.Message, variables map[string]string) {
 				attributeString := string(attributeBytes[:])
 				attributeHash := byteHash32(byteSha512([]byte(attributeString)))
 
-				if !hasElement(attributeHash, attributeHashes) {
+				if !hasElement32(attributeHash, attributeHashes) {
 
 					attributeValues[attributeHash] = attributeString
 					attributeHashes = append(attributeHashes, attributeHash)
